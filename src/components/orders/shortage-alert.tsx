@@ -7,8 +7,8 @@ export function ShortageAlert({ shortagePackagings }: { shortagePackagings: Shor
   if (shortagePackagings.length === 0) {
     return (
       <Alert>
-        <AlertTitle>包材足夠</AlertTitle>
-        <AlertDescription>商品已展開為製作參考；缺料判斷只檢查包材，目前沒有包材缺料。</AlertDescription>
+        <AlertTitle>包材足量</AlertTitle>
+        <AlertDescription>這張訂單目前沒有包材缺料，confirm 後可以正常預留。</AlertDescription>
       </Alert>
     );
   }
@@ -16,7 +16,18 @@ export function ShortageAlert({ shortagePackagings }: { shortagePackagings: Shor
   return (
     <Alert className="border-destructive/40">
       <AlertTitle>包材缺料提醒</AlertTitle>
-      <AlertDescription>有 {shortagePackagings.length} 項包材不足。訂單仍已成立，請依缺料清單安排補包材。</AlertDescription>
+      <AlertDescription>
+        <div className="grid gap-2">
+          <p>系統只顯示 shortagePackagings，不會把商品展開結果當成缺料警示。</p>
+          <ul className="grid gap-1">
+            {shortagePackagings.map((item) => (
+              <li key={item.itemId} className="text-destructive">
+                {item.itemName} 缺 {item.shortageQty}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </AlertDescription>
     </Alert>
   );
 }

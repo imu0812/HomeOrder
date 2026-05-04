@@ -1,10 +1,11 @@
 import type {
   COMPONENT_SOURCE_TYPES,
   ITEM_TYPES,
-  ORDER_MODES,
+  ORDER_DISCOUNT_TYPES,
+  ORDER_ITEM_STATUSES,
+  ORDER_PROGRESS_STATUSES,
   ORDER_STATUSES,
   PACKAGING_TYPES,
-  PAYMENT_STATUSES,
   PRODUCT_TYPES,
   REF_TYPES,
   TXN_TYPES,
@@ -15,8 +16,9 @@ export type UserRole = (typeof USER_ROLES)[number];
 export type ProductType = (typeof PRODUCT_TYPES)[number];
 export type PackagingType = (typeof PACKAGING_TYPES)[number];
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
-export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
-export type OrderMode = (typeof ORDER_MODES)[number];
+export type OrderItemStatus = (typeof ORDER_ITEM_STATUSES)[number];
+export type OrderProgress = (typeof ORDER_PROGRESS_STATUSES)[number];
+export type OrderDiscountType = (typeof ORDER_DISCOUNT_TYPES)[number];
 export type ItemType = (typeof ITEM_TYPES)[number];
 export type ComponentSourceType = (typeof COMPONENT_SOURCE_TYPES)[number];
 export type InventoryTxnType = (typeof TXN_TYPES)[number];
@@ -97,11 +99,12 @@ export type Order = {
   orderNo: string;
   customerName: string;
   customerPhone: string;
-  pickupDate: string;
   orderStatus: OrderStatus;
-  paymentStatus: PaymentStatus;
+  subtotalBeforeDiscount: number;
+  discountType: OrderDiscountType;
+  discountRate: number;
+  discountAmount: number;
   totalAmount: number;
-  orderMode: OrderMode;
   note?: string;
   createdAt: string;
   createdBy: string;
@@ -113,10 +116,14 @@ export type OrderItem = {
   productId: string;
   productNameSnapshot: string;
   qty: number;
-  unitPrice: number;
+  unit: string;
+  unitPriceSnapshot: number;
   subtotal: number;
   packagingId?: string;
   packagingNameSnapshot?: string;
+  plannedFulfillDate: string;
+  itemStatus: OrderItemStatus;
+  fulfilledAt?: string;
   remark?: string;
 };
 
@@ -175,9 +182,42 @@ export type ConfirmOrderResult = {
   snapshots: OrderItemComponent[];
 };
 
+export type UpdateOrderItemResult = ConfirmOrderResult & {
+  item?: OrderItem;
+  order?: Order;
+};
+
 export type OrderActionResult = {
   success: boolean;
   message: string;
   orderId: string;
   snapshots: OrderItemComponent[];
+};
+
+export type OrderDetail = {
+  order: Order;
+  items: OrderItem[];
+  mixItems: { orderItemId: string; items: OrderMixItem[] }[];
+  components: OrderItemComponent[];
+  orderProgress: OrderProgress;
+  hasFulfilledItems: boolean;
+};
+
+export type OrderListItem = {
+  order: Order;
+  orderProgress: OrderProgress;
+  itemCount: number;
+  pendingItemCount: number;
+  fulfilledItemCount: number;
+  nextPlannedFulfillDate?: string;
+};
+
+export type ScheduleItem = {
+  orderId: string;
+  orderNo: string;
+  customerName: string;
+  customerPhone: string;
+  orderStatus: OrderStatus;
+  orderProgress: OrderProgress;
+  item: OrderItem;
 };

@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { CakeSlice, ClipboardList, Home, Package, PackageCheck, ShoppingBag } from "lucide-react";
+import { CalendarDays, CakeSlice, ClipboardList, Home, Package, PackageCheck, ShoppingBag } from "lucide-react";
 import { mockSession } from "@/lib/auth/session";
 
 const navItems = [
-  { href: "/dashboard", label: "總覽", icon: Home },
+  { href: "/dashboard", label: "儀表板", icon: Home },
   { href: "/products", label: "商品", icon: CakeSlice },
-  { href: "/packagings", label: "包裝", icon: Package },
+  { href: "/packagings", label: "包材", icon: Package },
   { href: "/inventory/products", label: "商品庫存", icon: PackageCheck },
   { href: "/inventory/packagings", label: "包材庫存", icon: ShoppingBag },
-  { href: "/orders", label: "訂單", icon: ClipboardList }
+  { href: "/orders", label: "訂單", icon: ClipboardList },
+  { href: "/schedule", label: "排程", icon: CalendarDays }
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -17,7 +18,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="border-r bg-card">
         <div className="flex h-16 items-center border-b px-5">
           <Link href="/dashboard" className="font-semibold">
-            家庭烘焙進銷存
+            家庭烘焙訂單系統
           </Link>
         </div>
         <nav className="grid gap-1 p-3">
@@ -37,9 +38,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <header className="flex h-16 items-center justify-between border-b bg-background px-6">
           <div>
             <p className="text-sm text-muted-foreground">MVP Mock Repository</p>
-            <h1 className="font-semibold">訂單預留工作台</h1>
+            <h1 className="font-semibold">訂單建立、排程與明細交付</h1>
           </div>
-          <div className="text-sm text-muted-foreground">{mockSession.username} / {mockSession.role}</div>
+          <div className="text-sm text-muted-foreground">
+            {mockSession.username} / {mockSession.role}
+          </div>
         </header>
         <main className="mx-auto w-full max-w-7xl p-6">{children}</main>
       </div>

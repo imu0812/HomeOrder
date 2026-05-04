@@ -1,20 +1,12 @@
 import { NextResponse } from "next/server";
-import { getRepositories } from "@/repositories/provider";
-import { cancelOrder } from "@/services/orderService";
 
-export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await context.params;
-    const repos = getRepositories();
-    const result = await cancelOrder(repos, id);
-    return NextResponse.json(
-      { success: result.success, message: result.message, data: result },
-      { status: result.success ? 200 : 400 }
-    );
-  } catch (error) {
-    return NextResponse.json(
-      { success: false, message: error instanceof Error ? error.message : "Cancel failed", data: null },
-      { status: 500 }
-    );
-  }
+export async function POST() {
+  return NextResponse.json(
+    {
+      success: false,
+      message: "舊版 cancel 路由已停用，請改用 void 或 unconfirm。",
+      data: null
+    },
+    { status: 410 }
+  );
 }

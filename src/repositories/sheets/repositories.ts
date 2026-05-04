@@ -7,24 +7,35 @@ function notImplemented(): never {
 export const googleSheetsRepositories: Repositories = {
   products: {
     list: async () => notImplemented(),
-    findById: async () => notImplemented()
+    findById: async () => notImplemented(),
+    create: async () => notImplemented(),
+    update: async () => notImplemented(),
+    delete: async () => notImplemented()
   },
   packagings: {
     list: async () => notImplemented(),
-    findById: async () => notImplemented()
+    findById: async () => notImplemented(),
+    create: async () => notImplemented(),
+    update: async () => notImplemented(),
+    delete: async () => notImplemented()
   },
   bom: {
     listProductBom: async () => notImplemented(),
-    listPackagingBom: async () => notImplemented()
+    listPackagingBom: async () => notImplemented(),
+    replaceProductBom: async () => notImplemented(),
+    replacePackagingBom: async () => notImplemented()
   },
   orders: {
     listOrders: async () => notImplemented(),
     findOrder: async () => notImplemented(),
     listOrderItems: async () => notImplemented(),
+    findOrderItem: async () => notImplemented(),
     listMixItems: async () => notImplemented(),
     listComponents: async () => notImplemented(),
     createOrder: async () => notImplemented(),
+    createOrderItem: async () => notImplemented(),
     updateOrder: async () => notImplemented(),
+    updateOrderItem: async () => notImplemented(),
     replaceComponents: async () => notImplemented()
   },
   inventory: {

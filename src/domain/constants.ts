@@ -1,8 +1,9 @@
 export const PRODUCT_TYPES = ["single", "bundle", "custom_bundle_template"] as const;
 export const PACKAGING_TYPES = ["single_packaging", "gift_box", "bag", "accessory"] as const;
-export const ORDER_STATUSES = ["draft", "confirmed", "shipped", "cancelled"] as const;
-export const PAYMENT_STATUSES = ["unpaid", "paid"] as const;
-export const ORDER_MODES = ["normal", "fixed_bundle", "custom_mix"] as const;
+export const ORDER_STATUSES = ["draft", "confirmed", "cancelled"] as const;
+export const ORDER_ITEM_STATUSES = ["pending", "fulfilled", "cancelled"] as const;
+export const ORDER_PROGRESS_STATUSES = ["not_started", "partial", "completed"] as const;
+export const ORDER_DISCOUNT_TYPES = ["none", "percentage"] as const;
 export const ITEM_TYPES = ["product", "packaging"] as const;
 export const COMPONENT_SOURCE_TYPES = ["single", "product_bom", "packaging_bom", "custom_mix"] as const;
 export const TXN_TYPES = ["in", "reserve", "release", "deduct", "adjust"] as const;

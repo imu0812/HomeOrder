@@ -2,10 +2,11 @@ import { z } from "zod";
 import {
   COMPONENT_SOURCE_TYPES,
   ITEM_TYPES,
-  ORDER_MODES,
+  ORDER_DISCOUNT_TYPES,
+  ORDER_ITEM_STATUSES,
+  ORDER_PROGRESS_STATUSES,
   ORDER_STATUSES,
   PACKAGING_TYPES,
-  PAYMENT_STATUSES,
   PRODUCT_TYPES,
   REF_TYPES,
   TXN_TYPES,
@@ -87,11 +88,12 @@ export const orderSchema = z.object({
   orderNo: z.string().min(1),
   customerName: z.string().min(1),
   customerPhone: z.string().min(1),
-  pickupDate: z.string().min(1),
   orderStatus: z.enum(ORDER_STATUSES),
-  paymentStatus: z.enum(PAYMENT_STATUSES),
+  subtotalBeforeDiscount: z.number().nonnegative(),
+  discountType: z.enum(ORDER_DISCOUNT_TYPES),
+  discountRate: z.number().nonnegative(),
+  discountAmount: z.number().nonnegative(),
   totalAmount: z.number().nonnegative(),
-  orderMode: z.enum(ORDER_MODES),
   note: z.string().optional(),
   createdAt: z.string().min(1),
   createdBy: z.string().min(1)
@@ -103,10 +105,14 @@ export const orderItemSchema = z.object({
   productId: z.string().min(1),
   productNameSnapshot: z.string().min(1),
   qty: z.number().positive(),
-  unitPrice: z.number().nonnegative(),
+  unit: z.string().min(1),
+  unitPriceSnapshot: z.number().nonnegative(),
   subtotal: z.number().nonnegative(),
   packagingId: z.string().optional(),
   packagingNameSnapshot: z.string().optional(),
+  plannedFulfillDate: z.string().min(1),
+  itemStatus: z.enum(ORDER_ITEM_STATUSES),
+  fulfilledAt: z.string().optional(),
   remark: z.string().optional()
 });
 
@@ -147,6 +153,8 @@ export const createOrderItemInputSchema = z.object({
   productId: z.string().min(1),
   qty: z.number().positive(),
   packagingId: z.string().optional(),
+  plannedFulfillDate: z.string().min(1, "請選擇出貨日期"),
+  remark: z.string().optional(),
   mixItems: z
     .array(
       z.object({
@@ -160,8 +168,19 @@ export const createOrderItemInputSchema = z.object({
 export const createOrderRequestSchema = z.object({
   template: z.enum(["single", "bundle", "custom_mix"]).optional(),
   customerName: z.string().min(1, "請輸入客戶姓名"),
-  customerPhone: z.string().min(1, "請輸入聯絡電話"),
-  pickupDate: z.string().min(1, "請選擇取貨日"),
+  customerPhone: z.string().min(1, "請輸入客戶電話"),
   note: z.string().optional(),
-  items: z.array(createOrderItemInputSchema).min(1).optional()
+  discountType: z.enum(ORDER_DISCOUNT_TYPES).default("none"),
+  discountRate: z.number().nonnegative().default(1),
+  items: z.array(createOrderItemInputSchema).min(1)
 });
+
+export const updateOrderItemInputSchema = z.object({
+  qty: z.number().positive().optional(),
+  packagingId: z.string().optional().nullable(),
+  plannedFulfillDate: z.string().min(1).optional(),
+  remark: z.string().optional().nullable(),
+  cancel: z.boolean().optional()
+});
+
+export const orderProgressSchema = z.enum(ORDER_PROGRESS_STATUSES);

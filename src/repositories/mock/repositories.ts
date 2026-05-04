@@ -14,6 +14,20 @@ export const mockRepositories: Repositories = {
     },
     async findById(productId) {
       return mockDb.products.find((product) => product.productId === productId);
+    },
+    async create(product) {
+      mockDb.products.push(product);
+      return product;
+    },
+    async update(product) {
+      const index = mockDb.products.findIndex((item) => item.productId === product.productId);
+      if (index >= 0) mockDb.products[index] = product;
+      return product;
+    },
+    async delete(productId) {
+      mockDb.products = mockDb.products.filter((product) => product.productId !== productId);
+      mockDb.productBomItems = mockDb.productBomItems.filter((item) => item.parentProductId !== productId);
+      mockDb.inventoryProducts = mockDb.inventoryProducts.filter((item) => item.productId !== productId);
     }
   },
   packagings: {
@@ -22,6 +36,20 @@ export const mockRepositories: Repositories = {
     },
     async findById(packagingId) {
       return mockDb.packagings.find((packaging) => packaging.packagingId === packagingId);
+    },
+    async create(packaging) {
+      mockDb.packagings.push(packaging);
+      return packaging;
+    },
+    async update(packaging) {
+      const index = mockDb.packagings.findIndex((item) => item.packagingId === packaging.packagingId);
+      if (index >= 0) mockDb.packagings[index] = packaging;
+      return packaging;
+    },
+    async delete(packagingId) {
+      mockDb.packagings = mockDb.packagings.filter((packaging) => packaging.packagingId !== packagingId);
+      mockDb.packagingBomItems = mockDb.packagingBomItems.filter((item) => item.parentPackagingId !== packagingId);
+      mockDb.inventoryPackagings = mockDb.inventoryPackagings.filter((item) => item.packagingId !== packagingId);
     }
   },
   bom: {
@@ -34,6 +62,14 @@ export const mockRepositories: Repositories = {
       return mockDb.packagingBomItems
         .filter((item) => item.parentPackagingId === parentPackagingId)
         .sort((a, b) => a.sortOrder - b.sortOrder);
+    },
+    async replaceProductBom(parentProductId, items) {
+      mockDb.productBomItems = mockDb.productBomItems.filter((item) => item.parentProductId !== parentProductId);
+      mockDb.productBomItems.push(...items);
+    },
+    async replacePackagingBom(parentPackagingId, items) {
+      mockDb.packagingBomItems = mockDb.packagingBomItems.filter((item) => item.parentPackagingId !== parentPackagingId);
+      mockDb.packagingBomItems.push(...items);
     }
   },
   orders: {
@@ -45,6 +81,9 @@ export const mockRepositories: Repositories = {
     },
     async listOrderItems(orderId) {
       return mockDb.orderItems.filter((item) => item.orderId === orderId);
+    },
+    async findOrderItem(orderItemId) {
+      return mockDb.orderItems.find((item) => item.id === orderItemId);
     },
     async listMixItems(orderItemId) {
       return mockDb.orderMixItems.filter((item) => item.orderItemId === orderItemId);
@@ -59,10 +98,20 @@ export const mockRepositories: Repositories = {
       mockDb.orderMixItems.push(...(input.mixItems ?? []));
       return input.order;
     },
+    async createOrderItem(input: { item: OrderItem; mixItems?: OrderMixItem[] }) {
+      mockDb.orderItems.push(input.item);
+      mockDb.orderMixItems.push(...(input.mixItems ?? []));
+      return input.item;
+    },
     async updateOrder(order) {
       const index = mockDb.orders.findIndex((item) => item.orderId === order.orderId);
       if (index >= 0) mockDb.orders[index] = order;
       return order;
+    },
+    async updateOrderItem(orderItem) {
+      const index = mockDb.orderItems.findIndex((item) => item.id === orderItem.id);
+      if (index >= 0) mockDb.orderItems[index] = orderItem;
+      return orderItem;
     },
     async replaceComponents(orderId: string, components: OrderItemComponent[]) {
       const orderItemIds = mockDb.orderItems.filter((item) => item.orderId === orderId).map((item) => item.id);

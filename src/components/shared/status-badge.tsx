@@ -1,1 +1,1 @@
-export { OrderStatusBadge, PaymentStatusBadge } from "@/components/domain/status-badge";
+export { OrderItemStatusBadge, OrderProgressBadge, OrderStatusBadge } from "@/components/domain/status-badge";

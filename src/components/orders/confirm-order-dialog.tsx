@@ -15,16 +15,22 @@ export function ConfirmOrderDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button disabled={disabled}>{isPending ? "預留中..." : "Confirm"}</Button>
+        <Button disabled={disabled}>{isPending ? "確認中..." : "Confirm"}</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>確認預留此訂單？</DialogTitle>
-          <DialogDescription>系統會展開商品與包裝需求，寫入快照並增加 reservedStock。</DialogDescription>
+          <DialogTitle>確認訂單並預留包材</DialogTitle>
+          <DialogDescription>
+            Confirm 後，訂單主狀態會變成 confirmed，並依全部明細建立快照與預留包材。
+          </DialogDescription>
         </DialogHeader>
         <div className="flex justify-end gap-2">
-          <DialogClose asChild><Button variant="outline">取消</Button></DialogClose>
-          <DialogClose asChild><Button onClick={onConfirm}>確認預留</Button></DialogClose>
+          <DialogClose asChild>
+            <Button variant="outline">取消</Button>
+          </DialogClose>
+          <DialogClose asChild>
+            <Button onClick={onConfirm}>確認</Button>
+          </DialogClose>
         </div>
       </DialogContent>
     </Dialog>

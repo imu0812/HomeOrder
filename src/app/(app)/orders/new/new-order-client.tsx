@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
@@ -20,6 +20,8 @@ type DraftOrderItem = {
   productId: string;
   qty: number;
   packagingId?: string;
+  plannedFulfillDate: string;
+  remark?: string;
   mixItems: DraftMixItem[];
 };
 
@@ -32,8 +34,9 @@ async function fetchJson<T>(url: string): Promise<T> {
 async function createOrder(payload: {
   customerName: string;
   customerPhone: string;
-  pickupDate: string;
   note?: string;
+  discountType: "none" | "percentage";
+  discountRate: number;
   items: DraftOrderItem[];
 }) {
   const response = await fetch("/api/orders", {
@@ -41,11 +44,9 @@ async function createOrder(payload: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.message ?? "建立訂單失敗");
-  }
-  return response.json() as Promise<{ orderId: string }>;
+  const json = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(json?.message ?? "建立訂單失敗");
+  return json?.data as { orderId: string };
 }
 
 export function NewOrderClient() {
@@ -53,7 +54,20 @@ export function NewOrderClient() {
   const [products, setProducts] = useState<Product[]>([]);
   const [packagings, setPackagings] = useState<Packaging[]>([]);
   const [items, setItems] = useState<DraftOrderItem[]>([
-    { productId: "p_combo_a", qty: 2, packagingId: "pkg_mid_12", mixItems: [] }
+    {
+      productId: "p_yolk",
+      qty: 4,
+      packagingId: "pkg_cookie_bag",
+      plannedFulfillDate: "2026-04-30",
+      mixItems: []
+    },
+    {
+      productId: "p_pineapple",
+      qty: 7,
+      packagingId: "pkg_cookie_bag",
+      plannedFulfillDate: "2026-05-02",
+      mixItems: []
+    }
   ]);
 
   useEffect(() => {
@@ -64,8 +78,6 @@ export function NewOrderClient() {
       })
       .catch((error) => toast.error(error.message));
   }, []);
-
-  const singleProducts = useMemo(() => products.filter((product) => product.productType === "single"), [products]);
 
   const mutation = useMutation({
     mutationFn: createOrder,
@@ -99,7 +111,7 @@ export function NewOrderClient() {
     <Card>
       <CardHeader>
         <CardTitle>新增訂單</CardTitle>
-        <CardDescription>可新增多筆商品明細；選擇客製12入盒時，可直接填混搭內容。</CardDescription>
+        <CardDescription>每一筆明細都要有自己的 plannedFulfillDate，這樣之後才會正確出現在排程頁。</CardDescription>
       </CardHeader>
       <CardContent>
         <form
@@ -107,46 +119,58 @@ export function NewOrderClient() {
           onSubmit={(event) => {
             event.preventDefault();
             const formData = new FormData(event.currentTarget);
-            const validItems = items.filter((item) => item.productId && item.qty > 0);
+            const validItems = items.filter((item) => item.productId && item.qty > 0 && item.plannedFulfillDate);
             if (validItems.length === 0) {
-              toast.error("請至少新增一筆訂單明細");
+              toast.error("請至少新增一筆有效明細");
               return;
             }
             mutation.mutate({
               customerName: String(formData.get("customerName") ?? ""),
               customerPhone: String(formData.get("customerPhone") ?? ""),
-              pickupDate: String(formData.get("pickupDate") ?? ""),
               note: String(formData.get("note") ?? ""),
+              discountType: String(formData.get("discountType") ?? "none") as "none" | "percentage",
+              discountRate: Number(formData.get("discountRate") ?? 1),
               items: validItems
             });
           }}
         >
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="customerName">客戶姓名</Label>
-              <Input id="customerName" name="customerName" required defaultValue="測試客戶" />
+              <Input id="customerName" name="customerName" required defaultValue="王小美" />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="customerPhone">聯絡電話</Label>
+              <Label htmlFor="customerPhone">客戶電話</Label>
               <Input id="customerPhone" name="customerPhone" required defaultValue="0912-345-678" />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="pickupDate">取貨日</Label>
-              <Input id="pickupDate" name="pickupDate" type="date" required defaultValue="2026-04-30" />
-            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="note">備註</Label>
-            <Input id="note" name="note" placeholder="可留空" />
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-2">
+              <Label htmlFor="discountType">折扣類型</Label>
+              <select id="discountType" name="discountType" className="h-10 rounded-md border bg-background px-3 text-sm" defaultValue="percentage">
+                <option value="none">無折扣</option>
+                <option value="percentage">百分比</option>
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="discountRate">折扣倍率</Label>
+              <Input id="discountRate" name="discountRate" type="number" step="0.01" min="0" defaultValue="0.95" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="note">備註</Label>
+              <Input id="note" name="note" placeholder="例如：分兩天交付" />
+            </div>
           </div>
 
           <div className="grid gap-4">
             {items.map((item, index) => {
               const product = products.find((entry) => entry.productId === item.productId);
               const isCustom = product?.productType === "custom_bundle_template";
+
               return (
                 <div key={index} className="grid gap-4 rounded-lg border bg-card p-4">
-                  <div className="grid gap-4 md:grid-cols-[1fr_120px_1fr_auto]">
+                  <div className="grid gap-4 md:grid-cols-[1.4fr_100px_1fr_180px_auto]">
                     <div className="grid gap-2">
                       <Label>商品</Label>
                       <select
@@ -169,19 +193,14 @@ export function NewOrderClient() {
                       >
                         {products.map((productOption) => (
                           <option key={productOption.productId} value={productOption.productId}>
-                            {productOption.productName} / {productOption.productType}
+                            {productOption.productName}
                           </option>
                         ))}
                       </select>
                     </div>
                     <div className="grid gap-2">
                       <Label>數量</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={item.qty}
-                        onChange={(event) => updateItem(index, { qty: Number(event.target.value) })}
-                      />
+                      <Input type="number" min={1} value={item.qty} onChange={(event) => updateItem(index, { qty: Number(event.target.value) })} />
                     </div>
                     <div className="grid gap-2">
                       <Label>包裝</Label>
@@ -198,6 +217,14 @@ export function NewOrderClient() {
                         ))}
                       </select>
                     </div>
+                    <div className="grid gap-2">
+                      <Label>出貨日期</Label>
+                      <Input
+                        type="date"
+                        value={item.plannedFulfillDate}
+                        onChange={(event) => updateItem(index, { plannedFulfillDate: event.target.value })}
+                      />
+                    </div>
                     <Button
                       type="button"
                       variant="ghost"
@@ -209,21 +236,27 @@ export function NewOrderClient() {
                     </Button>
                   </div>
 
-                  {isCustom && (
+                  <div className="grid gap-2">
+                    <Label>明細備註</Label>
+                    <Input value={item.remark ?? ""} onChange={(event) => updateItem(index, { remark: event.target.value })} />
+                  </div>
+
+                  {isCustom ? (
                     <div className="grid gap-3 border-t pt-4">
                       <div className="flex items-center justify-between">
-                        <Label>客製混搭內容</Label>
+                        <Label>自選內容</Label>
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
                           onClick={() =>
                             updateItem(index, {
-                              mixItems: [...item.mixItems, { productId: singleProducts[0]?.productId ?? "p_pineapple", qty: 1 }]
+                              mixItems: [...item.mixItems, { productId: "p_pineapple", qty: 1 }]
                             })
                           }
                         >
-                          <Plus className="mr-2 h-4 w-4" />新增混搭
+                          <Plus className="mr-2 h-4 w-4" />
+                          新增品項
                         </Button>
                       </div>
                       {item.mixItems.map((mixItem, mixIndex) => (
@@ -233,11 +266,13 @@ export function NewOrderClient() {
                             value={mixItem.productId}
                             onChange={(event) => updateMixItem(index, mixIndex, { productId: event.target.value })}
                           >
-                            {singleProducts.map((productOption) => (
-                              <option key={productOption.productId} value={productOption.productId}>
-                                {productOption.productName}
-                              </option>
-                            ))}
+                            {products
+                              .filter((productOption) => productOption.productType === "single")
+                              .map((productOption) => (
+                                <option key={productOption.productId} value={productOption.productId}>
+                                  {productOption.productName}
+                                </option>
+                              ))}
                           </select>
                           <Input
                             type="number"
@@ -260,7 +295,7 @@ export function NewOrderClient() {
                         </div>
                       ))}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               );
             })}
@@ -270,9 +305,21 @@ export function NewOrderClient() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setItems((current) => [...current, { productId: "p_pineapple", qty: 1, packagingId: "pkg_pineapple_bag", mixItems: [] }])}
+              onClick={() =>
+                setItems((current) => [
+                  ...current,
+                  {
+                    productId: "p_pineapple",
+                    qty: 1,
+                    packagingId: "pkg_cookie_bag",
+                    plannedFulfillDate: "2026-04-30",
+                    mixItems: []
+                  }
+                ])
+              }
             >
-              <Plus className="mr-2 h-4 w-4" />新增明細
+              <Plus className="mr-2 h-4 w-4" />
+              新增明細
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? "建立中..." : "建立訂單"}

@@ -30,7 +30,7 @@ export type MockDb = {
   transactions: InventoryTransaction[];
 };
 
-export const mockDb: MockDb = {
+const initialMockDb: MockDb = {
   users: [
     {
       id: "u_admin",
@@ -54,9 +54,9 @@ export const mockDb: MockDb = {
       isActive: true
     },
     {
-      productId: "p_phoenix",
+      productId: "p_yolk",
       productCode: "P-002",
-      productName: "鳳凰酥",
+      productName: "蛋黃酥",
       productType: "single",
       unit: "顆",
       price: 55,
@@ -65,19 +65,8 @@ export const mockDb: MockDb = {
       isActive: true
     },
     {
-      productId: "p_yolk",
-      productCode: "P-003",
-      productName: "蛋黃酥",
-      productType: "single",
-      unit: "顆",
-      price: 65,
-      safeStock: 12,
-      isCompositeProduct: false,
-      isActive: true
-    },
-    {
       productId: "p_taro",
-      productCode: "P-004",
+      productCode: "P-003",
       productName: "芋頭酥",
       productType: "single",
       unit: "顆",
@@ -89,90 +78,50 @@ export const mockDb: MockDb = {
     {
       productId: "p_combo_a",
       productCode: "B-A12",
-      productName: "綜合A",
+      productName: "綜合禮盒 A",
       productType: "bundle",
       unit: "盒",
       price: 690,
       safeStock: 0,
       isCompositeProduct: true,
       isActive: true,
-      remark: "蛋黃酥6 + 鳳梨酥6"
-    },
-    {
-      productId: "p_combo_b",
-      productCode: "B-B12",
-      productName: "綜合B",
-      productType: "bundle",
-      unit: "盒",
-      price: 710,
-      safeStock: 0,
-      isCompositeProduct: true,
-      isActive: true,
-      remark: "蛋黃酥4 + 鳳梨酥4 + 芋頭酥4"
+      remark: "蛋黃酥 6 + 鳳梨酥 6"
     },
     {
       productId: "p_custom_12",
       productCode: "C-012",
-      productName: "客製12入盒",
+      productName: "自選 12 入",
       productType: "custom_bundle_template",
       unit: "盒",
       price: 720,
       safeStock: 0,
       isCompositeProduct: true,
-      isActive: true,
-      remark: "由訂單內 OrderMixItems 決定內容"
+      isActive: true
     }
   ],
   productBomItems: [
     { id: "pbom_a_1", parentProductId: "p_combo_a", childProductId: "p_yolk", qty: 6, sortOrder: 1 },
-    { id: "pbom_a_2", parentProductId: "p_combo_a", childProductId: "p_pineapple", qty: 6, sortOrder: 2 },
-    { id: "pbom_b_1", parentProductId: "p_combo_b", childProductId: "p_yolk", qty: 4, sortOrder: 1 },
-    { id: "pbom_b_2", parentProductId: "p_combo_b", childProductId: "p_pineapple", qty: 4, sortOrder: 2 },
-    { id: "pbom_b_3", parentProductId: "p_combo_b", childProductId: "p_taro", qty: 4, sortOrder: 3 }
+    { id: "pbom_a_2", parentProductId: "p_combo_a", childProductId: "p_pineapple", qty: 6, sortOrder: 2 }
   ],
   packagings: [
     {
-      packagingId: "pkg_pineapple_bag",
-      packagingCode: "PK-PINE",
-      packagingName: "鳳梨酥包裝袋",
+      packagingId: "pkg_cookie_bag",
+      packagingCode: "PK-BAG",
+      packagingName: "單顆包裝袋",
       packagingType: "single_packaging",
       unit: "個",
-      currentStock: 40,
+      currentStock: 60,
       reservedStock: 0,
       safeStock: 10,
       isComposite: false,
-      isActive: true
-    },
-    {
-      packagingId: "pkg_yolk_bag",
-      packagingCode: "PK-YOLK",
-      packagingName: "蛋黃酥包裝袋",
-      packagingType: "single_packaging",
-      unit: "個",
-      currentStock: 50,
-      reservedStock: 0,
-      safeStock: 10,
-      isComposite: false,
-      isActive: true
-    },
-    {
-      packagingId: "pkg_mid_6",
-      packagingCode: "PK-M6",
-      packagingName: "中秋6入禮盒",
-      packagingType: "gift_box",
-      unit: "組",
-      currentStock: 0,
-      reservedStock: 0,
-      safeStock: 0,
-      isComposite: true,
       isActive: true
     },
     {
       packagingId: "pkg_mid_12",
       packagingCode: "PK-M12",
-      packagingName: "中秋12入禮盒",
+      packagingName: "12 入禮盒",
       packagingType: "gift_box",
-      unit: "組",
+      unit: "盒",
       currentStock: 0,
       reservedStock: 0,
       safeStock: 0,
@@ -182,7 +131,7 @@ export const mockDb: MockDb = {
     {
       packagingId: "pkg_lid",
       packagingCode: "PK-LID",
-      packagingName: "紙蓋",
+      packagingName: "盒蓋",
       packagingType: "accessory",
       unit: "個",
       currentStock: 30,
@@ -194,7 +143,7 @@ export const mockDb: MockDb = {
     {
       packagingId: "pkg_bottom",
       packagingCode: "PK-BOTTOM",
-      packagingName: "底盒",
+      packagingName: "盒底",
       packagingType: "accessory",
       unit: "個",
       currentStock: 30,
@@ -204,21 +153,9 @@ export const mockDb: MockDb = {
       isActive: true
     },
     {
-      packagingId: "pkg_insert_lid",
-      packagingCode: "PK-ILID",
-      packagingName: "內襯蓋",
-      packagingType: "accessory",
-      unit: "個",
-      currentStock: 30,
-      reservedStock: 0,
-      safeStock: 8,
-      isComposite: false,
-      isActive: true
-    },
-    {
-      packagingId: "pkg_insert_bottom",
-      packagingCode: "PK-IBOT",
-      packagingName: "內襯底",
+      packagingId: "pkg_insert",
+      packagingCode: "PK-INSERT",
+      packagingName: "內襯",
       packagingType: "accessory",
       unit: "個",
       currentStock: 30,
@@ -229,8 +166,8 @@ export const mockDb: MockDb = {
     },
     {
       packagingId: "pkg_paper_bag",
-      packagingCode: "PK-BAG",
-      packagingName: "紙袋",
+      packagingCode: "PK-PAPER",
+      packagingName: "提袋",
       packagingType: "bag",
       unit: "個",
       currentStock: 0,
@@ -238,120 +175,194 @@ export const mockDb: MockDb = {
       safeStock: 8,
       isComposite: false,
       isActive: true,
-      remark: "刻意設為 0，用來測試客製混搭包材缺料"
+      remark: "故意設為 0，用於缺料案例"
     }
   ],
   packagingBomItems: [
-    { id: "kbom_6_1", parentPackagingId: "pkg_mid_6", childPackagingId: "pkg_lid", qty: 1, sortOrder: 1 },
-    { id: "kbom_6_2", parentPackagingId: "pkg_mid_6", childPackagingId: "pkg_bottom", qty: 1, sortOrder: 2 },
-    { id: "kbom_6_3", parentPackagingId: "pkg_mid_6", childPackagingId: "pkg_insert_lid", qty: 1, sortOrder: 3 },
-    { id: "kbom_6_4", parentPackagingId: "pkg_mid_6", childPackagingId: "pkg_insert_bottom", qty: 1, sortOrder: 4 },
-    { id: "kbom_6_5", parentPackagingId: "pkg_mid_6", childPackagingId: "pkg_paper_bag", qty: 1, sortOrder: 5 },
     { id: "kbom_12_1", parentPackagingId: "pkg_mid_12", childPackagingId: "pkg_lid", qty: 1, sortOrder: 1 },
     { id: "kbom_12_2", parentPackagingId: "pkg_mid_12", childPackagingId: "pkg_bottom", qty: 1, sortOrder: 2 },
-    { id: "kbom_12_3", parentPackagingId: "pkg_mid_12", childPackagingId: "pkg_insert_lid", qty: 1, sortOrder: 3 },
-    { id: "kbom_12_4", parentPackagingId: "pkg_mid_12", childPackagingId: "pkg_insert_bottom", qty: 1, sortOrder: 4 },
-    { id: "kbom_12_5", parentPackagingId: "pkg_mid_12", childPackagingId: "pkg_paper_bag", qty: 1, sortOrder: 5 }
+    { id: "kbom_12_3", parentPackagingId: "pkg_mid_12", childPackagingId: "pkg_insert", qty: 1, sortOrder: 3 },
+    { id: "kbom_12_4", parentPackagingId: "pkg_mid_12", childPackagingId: "pkg_paper_bag", qty: 1, sortOrder: 4 }
   ],
   inventoryProducts: [
     { id: "invp_pineapple", productId: "p_pineapple", currentStock: 10, reservedStock: 0, availableStock: 10, updatedAt: now },
-    { id: "invp_phoenix", productId: "p_phoenix", currentStock: 25, reservedStock: 0, availableStock: 25, updatedAt: now },
     { id: "invp_yolk", productId: "p_yolk", currentStock: 40, reservedStock: 0, availableStock: 40, updatedAt: now },
-    { id: "invp_taro", productId: "p_taro", currentStock: 20, reservedStock: 0, availableStock: 20, updatedAt: now }
+    { id: "invp_taro", productId: "p_taro", currentStock: 20, reservedStock: 0, availableStock: 20, updatedAt: now },
+    { id: "invp_combo_a", productId: "p_combo_a", currentStock: 0, reservedStock: 0, availableStock: 0, updatedAt: now },
+    { id: "invp_custom_12", productId: "p_custom_12", currentStock: 0, reservedStock: 0, availableStock: 0, updatedAt: now }
   ],
   inventoryPackagings: [
-    { id: "invk_pineapple_bag", packagingId: "pkg_pineapple_bag", currentStock: 40, reservedStock: 0, availableStock: 40, updatedAt: now },
-    { id: "invk_yolk_bag", packagingId: "pkg_yolk_bag", currentStock: 50, reservedStock: 0, availableStock: 50, updatedAt: now },
+    { id: "invk_cookie_bag", packagingId: "pkg_cookie_bag", currentStock: 60, reservedStock: 0, availableStock: 60, updatedAt: now },
     { id: "invk_lid", packagingId: "pkg_lid", currentStock: 30, reservedStock: 0, availableStock: 30, updatedAt: now },
     { id: "invk_bottom", packagingId: "pkg_bottom", currentStock: 30, reservedStock: 0, availableStock: 30, updatedAt: now },
-    { id: "invk_insert_lid", packagingId: "pkg_insert_lid", currentStock: 30, reservedStock: 0, availableStock: 30, updatedAt: now },
-    { id: "invk_insert_bottom", packagingId: "pkg_insert_bottom", currentStock: 30, reservedStock: 0, availableStock: 30, updatedAt: now },
+    { id: "invk_insert", packagingId: "pkg_insert", currentStock: 30, reservedStock: 0, availableStock: 30, updatedAt: now },
     { id: "invk_paper_bag", packagingId: "pkg_paper_bag", currentStock: 0, reservedStock: 0, availableStock: 0, updatedAt: now }
   ],
   orders: [
     {
-      orderId: "o_single",
+      orderId: "o_multiday",
       orderNo: "ORD-20260422-001",
-      customerName: "案例1 單品正常",
+      customerName: "王小美",
       customerPhone: "0912-111-222",
-      pickupDate: "2026-04-25",
-      orderStatus: "draft",
-      paymentStatus: "unpaid",
-      totalAmount: 500,
-      orderMode: "normal",
-      note: "鳳梨酥 x 10，鳳梨酥包裝袋 x 10，預期無缺料。",
+      orderStatus: "confirmed",
+      subtotalBeforeDiscount: 570,
+      discountType: "percentage",
+      discountRate: 0.95,
+      discountAmount: 29,
+      totalAmount: 541,
+      note: "案例 1~5 使用",
       createdAt: now,
       createdBy: "u_admin"
     },
     {
-      orderId: "o_bundle",
+      orderId: "o_shortage",
       orderNo: "ORD-20260422-002",
-      customerName: "案例2 固定組合缺商品",
+      customerName: "陳先生",
       customerPhone: "0922-333-444",
-      pickupDate: "2026-04-26",
       orderStatus: "draft",
-      paymentStatus: "unpaid",
-      totalAmount: 1380,
-      orderMode: "fixed_bundle",
-      note: "綜合A x 2，商品會展開為製作參考；缺料判斷只看包材。",
-      createdAt: now,
-      createdBy: "u_admin"
-    },
-    {
-      orderId: "o_custom",
-      orderNo: "ORD-20260422-003",
-      customerName: "案例3 客製混搭缺包材",
-      customerPhone: "0933-555-666",
-      pickupDate: "2026-04-27",
-      orderStatus: "draft",
-      paymentStatus: "unpaid",
+      subtotalBeforeDiscount: 720,
+      discountType: "none",
+      discountRate: 1,
+      discountAmount: 0,
       totalAmount: 720,
-      orderMode: "custom_mix",
-      note: "客製12入盒，紙袋庫存0，預期包材缺料。",
+      note: "確認時應只顯示 shortagePackagings",
       createdAt: now,
       createdBy: "u_admin"
     }
   ],
   orderItems: [
     {
-      id: "oi_single_1",
-      orderId: "o_single",
+      id: "oi_multiday_1",
+      orderId: "o_multiday",
+      productId: "p_yolk",
+      productNameSnapshot: "蛋黃酥",
+      qty: 4,
+      unit: "顆",
+      unitPriceSnapshot: 55,
+      subtotal: 220,
+      packagingId: "pkg_cookie_bag",
+      packagingNameSnapshot: "單顆包裝袋",
+      plannedFulfillDate: "2026-04-30",
+      itemStatus: "fulfilled",
+      fulfilledAt: "2026-04-23T03:00:00.000Z",
+      remark: "第一批先交付"
+    },
+    {
+      id: "oi_multiday_2",
+      orderId: "o_multiday",
       productId: "p_pineapple",
       productNameSnapshot: "鳳梨酥",
-      qty: 10,
-      unitPrice: 50,
-      subtotal: 500,
-      packagingId: "pkg_pineapple_bag",
-      packagingNameSnapshot: "鳳梨酥包裝袋"
+      qty: 7,
+      unit: "顆",
+      unitPriceSnapshot: 50,
+      subtotal: 350,
+      packagingId: "pkg_cookie_bag",
+      packagingNameSnapshot: "單顆包裝袋",
+      plannedFulfillDate: "2026-05-02",
+      itemStatus: "pending",
+      remark: "第二批再交付"
     },
     {
-      id: "oi_bundle_1",
-      orderId: "o_bundle",
-      productId: "p_combo_a",
-      productNameSnapshot: "綜合A",
-      qty: 2,
-      unitPrice: 690,
-      subtotal: 1380,
-      packagingId: "pkg_mid_12",
-      packagingNameSnapshot: "中秋12入禮盒"
-    },
-    {
-      id: "oi_custom_1",
-      orderId: "o_custom",
+      id: "oi_shortage_1",
+      orderId: "o_shortage",
       productId: "p_custom_12",
-      productNameSnapshot: "客製12入盒",
+      productNameSnapshot: "自選 12 入",
       qty: 1,
-      unitPrice: 720,
+      unit: "盒",
+      unitPriceSnapshot: 720,
       subtotal: 720,
       packagingId: "pkg_mid_12",
-      packagingNameSnapshot: "中秋12入禮盒"
+      packagingNameSnapshot: "12 入禮盒",
+      plannedFulfillDate: "2026-04-30",
+      itemStatus: "pending",
+      remark: "需要禮盒與提袋"
     }
   ],
   orderMixItems: [
-    { id: "mix_1", orderItemId: "oi_custom_1", productId: "p_yolk", productNameSnapshot: "蛋黃酥", qty: 3, unit: "顆", sortOrder: 1 },
-    { id: "mix_2", orderItemId: "oi_custom_1", productId: "p_pineapple", productNameSnapshot: "鳳梨酥", qty: 5, unit: "顆", sortOrder: 2 },
-    { id: "mix_3", orderItemId: "oi_custom_1", productId: "p_taro", productNameSnapshot: "芋頭酥", qty: 4, unit: "顆", sortOrder: 3 }
+    { id: "mix_shortage_1", orderItemId: "oi_shortage_1", productId: "p_yolk", productNameSnapshot: "蛋黃酥", qty: 3, unit: "顆", sortOrder: 1 },
+    { id: "mix_shortage_2", orderItemId: "oi_shortage_1", productId: "p_pineapple", productNameSnapshot: "鳳梨酥", qty: 5, unit: "顆", sortOrder: 2 },
+    { id: "mix_shortage_3", orderItemId: "oi_shortage_1", productId: "p_taro", productNameSnapshot: "芋頭酥", qty: 4, unit: "顆", sortOrder: 3 }
   ],
-  orderItemComponents: [],
-  transactions: []
+  orderItemComponents: [
+    {
+      id: "oic_multiday_1",
+      orderItemId: "oi_multiday_1",
+      itemType: "packaging",
+      itemId: "pkg_cookie_bag",
+      itemNameSnapshot: "單顆包裝袋",
+      qty: 4,
+      sourceType: "single"
+    },
+    {
+      id: "oic_multiday_2",
+      orderItemId: "oi_multiday_2",
+      itemType: "packaging",
+      itemId: "pkg_cookie_bag",
+      itemNameSnapshot: "單顆包裝袋",
+      qty: 7,
+      sourceType: "single"
+    },
+    {
+      id: "oic_multiday_p1",
+      orderItemId: "oi_multiday_1",
+      itemType: "product",
+      itemId: "p_yolk",
+      itemNameSnapshot: "蛋黃酥",
+      qty: 4,
+      sourceType: "single"
+    },
+    {
+      id: "oic_multiday_p2",
+      orderItemId: "oi_multiday_2",
+      itemType: "product",
+      itemId: "p_pineapple",
+      itemNameSnapshot: "鳳梨酥",
+      qty: 7,
+      sourceType: "single"
+    }
+  ],
+  transactions: [
+    {
+      txnId: "txn_multiday_reserve_1",
+      itemType: "packaging",
+      itemId: "pkg_cookie_bag",
+      txnType: "reserve",
+      qty: 11,
+      refType: "order",
+      refId: "o_multiday",
+      note: "Reserve for ORD-20260422-001",
+      createdAt: now,
+      createdBy: "u_admin"
+    },
+    {
+      txnId: "txn_multiday_deduct_1",
+      itemType: "packaging",
+      itemId: "pkg_cookie_bag",
+      txnType: "deduct",
+      qty: 4,
+      refType: "order",
+      refId: "o_multiday",
+      note: "Fulfill item oi_multiday_1",
+      createdAt: "2026-04-23T03:00:00.000Z",
+      createdBy: "u_admin"
+    }
+  ]
 };
+
+initialMockDb.inventoryPackagings = initialMockDb.inventoryPackagings.map((inventory) =>
+  inventory.packagingId === "pkg_cookie_bag"
+    ? {
+        ...inventory,
+        currentStock: 56,
+        reservedStock: 7,
+        availableStock: 49
+      }
+    : inventory
+);
+
+const globalForMockDb = globalThis as typeof globalThis & {
+  __homeOrderMockDb?: MockDb;
+};
+
+export const mockDb: MockDb = globalForMockDb.__homeOrderMockDb ?? initialMockDb;
+globalForMockDb.__homeOrderMockDb = mockDb;
