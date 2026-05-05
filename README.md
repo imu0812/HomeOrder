@@ -107,9 +107,9 @@ CI must pass before merging production changes.
 2. Create a new project.
 3. Import the GitHub repository.
 4. Vercel should automatically detect this as a Next.js project.
-5. Keep the default build settings unless you have a special reason to change them:
+5. Keep the project build settings aligned with `vercel.json`:
    - Build Command: `npm run build`
-   - Install Command: `npm ci` or Vercel default
+   - Install Command: `npm ci`
    - Output Directory: leave empty for Next.js
 6. Set the production branch to `main`.
 7. Keep preview deployments enabled for `develop` and pull requests.
@@ -206,17 +206,25 @@ Mock data appears in production:
 
 ## Vercel Configuration
 
-This project does not currently need a `vercel.json` file.
+This project includes a small `vercel.json` file:
 
-Vercel can deploy a standard Next.js App Router project using its default framework detection:
+```json
+{
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build"
+}
+```
+
+The file is intentionally minimal. Vercel can still detect this as a standard Next.js App Router project, but the install command is pinned to `npm ci` so Vercel uses the committed lockfile exactly like GitHub Actions.
 
 - Framework Preset: Next.js
 - Build Command: `npm run build`
+- Install Command: `npm ci`
 - Output Directory: Vercel default for Next.js
 - Production Branch: `main`
 - Preview Deployments: `develop` and pull requests
 
-Add `vercel.json` later only if the project needs custom redirects, headers, cron jobs, function regions, build overrides, or other Vercel-specific behavior.
+Expand `vercel.json` later only if the project needs custom redirects, headers, cron jobs, function regions, or other Vercel-specific behavior.
 
 ## Deployment Preflight Checklist
 
