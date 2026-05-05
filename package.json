@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:turbo": "next dev --turbopack",
+    "dev:warmup": "node scripts/warmup-dev.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

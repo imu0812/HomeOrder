@@ -210,6 +210,9 @@ const initialMockDb: MockDb = {
       discountRate: 0.95,
       discountAmount: 29,
       totalAmount: 541,
+      paidAmount: 200,
+      confirmedShortagePackagings: [],
+      packagingCheckedAt: now,
       note: "案例 1~5 使用",
       createdAt: now,
       createdBy: "u_admin"
@@ -225,6 +228,8 @@ const initialMockDb: MockDb = {
       discountRate: 1,
       discountAmount: 0,
       totalAmount: 720,
+      paidAmount: 0,
+      confirmedShortagePackagings: [],
       note: "確認時應只顯示 shortagePackagings",
       createdAt: now,
       createdBy: "u_admin"

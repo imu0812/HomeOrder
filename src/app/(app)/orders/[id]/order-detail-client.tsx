@@ -23,7 +23,7 @@ import {
   relevantScheduleDates,
   restoreOrderQuerySnapshot
 } from "@/lib/query/order-optimistic";
-import { formatDateTime, formatNumber, nowIso } from "@/lib/utils";
+import { cn, formatDateTime, formatNumber, nowIso } from "@/lib/utils";
 import type {
   ConfirmOrderResult,
   OrderActionResult,
@@ -39,10 +39,23 @@ type EditItemForm = {
   packagingId: string;
   plannedFulfillDate: string;
   remark: string;
+  mixItems: EditableMixItem[];
 };
 
 type AddItemForm = EditItemForm & {
   productId: string;
+};
+
+type EditableMixItem = {
+  productId: string;
+  qty: string;
+};
+
+type EditOrderForm = {
+  discountType: "none" | "percentage";
+  discountRate: string;
+  paidAmount: string;
+  note: string;
 };
 
 async function fetchOrder(orderId: string): Promise<OrderDetail> {
@@ -55,7 +68,7 @@ async function fetchOrder(orderId: string): Promise<OrderDetail> {
 async function fetchPackagings(): Promise<Packaging[]> {
   const response = await fetch("/api/packagings");
   const json = await response.json();
-  if (!response.ok) throw new Error(json.message ?? "讀取包裝失敗");
+  if (!response.ok) throw new Error(json.message ?? "讀取包材失敗");
   return json;
 }
 
@@ -70,6 +83,13 @@ async function confirmOrderApi(orderId: string): Promise<ConfirmOrderResult> {
   const response = await fetch(`/api/orders/${orderId}/confirm`, { method: "POST" });
   const json = await response.json();
   if (!response.ok) throw new Error(json.message ?? "確認訂單失敗");
+  return json.data;
+}
+
+async function recheckPackagingApi(orderId: string): Promise<ConfirmOrderResult> {
+  const response = await fetch(`/api/orders/${orderId}/packaging-check`, { method: "POST" });
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.message ?? "包材檢查失敗");
   return json.data;
 }
 
@@ -116,22 +136,53 @@ async function addItemApi(orderId: string, input: Record<string, unknown>): Prom
   return json.data;
 }
 
-export function OrderDetailClient({ orderId, initialData }: { orderId: string; initialData: OrderDetail }) {
+async function updateOrderApi(orderId: string, input: Record<string, unknown>) {
+  const response = await fetch(`/api/orders/${orderId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.message ?? "更新訂單失敗");
+  return json.data;
+}
+
+export function OrderDetailClient({
+  orderId,
+  initialData,
+  initialProducts,
+  initialPackagings
+}: {
+  orderId: string;
+  initialData: OrderDetail;
+  initialProducts: Product[];
+  initialPackagings: Packaging[];
+}) {
   const queryClient = useQueryClient();
   const [editingItem, setEditingItem] = useState<OrderItem | null>(null);
+  const [isEditOrderDialogOpen, setIsEditOrderDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedItemId, setSelectedItemId] = useState(initialData.items[0]?.id ?? "");
   const [editForm, setEditForm] = useState<EditItemForm>({
     qty: "",
     packagingId: "",
     plannedFulfillDate: "",
-    remark: ""
+    remark: "",
+    mixItems: []
   });
   const [addForm, setAddForm] = useState<AddItemForm>({
     productId: "",
     qty: "1",
     packagingId: "",
     plannedFulfillDate: new Date().toISOString().slice(0, 10),
-    remark: ""
+    remark: "",
+    mixItems: []
+  });
+  const [editOrderForm, setEditOrderForm] = useState<EditOrderForm>({
+    discountType: initialData.order.discountType,
+    discountRate: String(initialData.order.discountRate),
+    paidAmount: String(initialData.order.paidAmount ?? 0),
+    note: initialData.order.note ?? ""
   });
 
   const { data, isLoading } = useQuery({
@@ -143,14 +194,39 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
   const { data: packagings = [] } = useQuery({
     queryKey: ["packagings"],
     queryFn: fetchPackagings,
+    initialData: initialPackagings,
     staleTime: 60_000
   });
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
     queryFn: fetchProducts,
+    initialData: initialProducts,
     staleTime: 60_000
   });
   const scheduleDates = relevantScheduleDates(data);
+  const singleProducts = products.filter((product) => product.productType === "single");
+
+  function isCustomProduct(productId: string) {
+    return products.find((product) => product.productId === productId)?.productType === "custom_bundle_template";
+  }
+
+  function makeDefaultMixItems(): EditableMixItem[] {
+    const preferredIds = ["p_yolk", "p_pineapple", "p_taro"];
+    const preferredProducts = preferredIds
+      .map((productId) => singleProducts.find((product) => product.productId === productId))
+      .filter(Boolean) as Product[];
+    const defaults = preferredProducts.length > 0 ? preferredProducts : singleProducts.slice(0, 3);
+    return defaults.map((product, index) => ({
+      productId: product.productId,
+      qty: String([3, 5, 4][index] ?? 1)
+    }));
+  }
+
+  function toMixPayload(mixItems: EditableMixItem[]) {
+    return mixItems
+      .filter((mixItem) => mixItem.productId && Number(mixItem.qty) > 0)
+      .map((mixItem) => ({ productId: mixItem.productId, qty: Number(mixItem.qty) }));
+  }
 
   function invalidateRelatedQueries(orderIdToRefresh: string, dates: string[]) {
     queryClient.invalidateQueries({ queryKey: ["order", orderIdToRefresh] });
@@ -161,12 +237,17 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
   }
 
   function openEditDialog(item: OrderItem) {
+    const currentMixItems = data.mixItems.find((group) => group.orderItemId === item.id)?.items ?? [];
     setEditingItem(item);
     setEditForm({
       qty: String(item.qty),
       packagingId: item.packagingId ?? "",
       plannedFulfillDate: item.plannedFulfillDate,
-      remark: item.remark ?? ""
+      remark: item.remark ?? "",
+      mixItems: currentMixItems.map((mixItem) => ({
+        productId: mixItem.productId,
+        qty: String(mixItem.qty)
+      }))
     });
   }
 
@@ -174,9 +255,67 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
     setAddForm((form) => ({
       ...form,
       productId: form.productId || products[0]?.productId || "",
-      packagingId: form.packagingId || packagings[0]?.packagingId || ""
+      packagingId: form.packagingId || packagings[0]?.packagingId || "",
+      mixItems:
+        isCustomProduct(form.productId || products[0]?.productId || "") && form.mixItems.length === 0
+          ? makeDefaultMixItems()
+          : form.mixItems
     }));
     setIsAddDialogOpen(true);
+  }
+
+  function openEditOrderDialog() {
+    setEditOrderForm({
+      discountType: data.order.discountType,
+      discountRate: String(data.order.discountRate),
+      paidAmount: String(data.order.paidAmount ?? 0),
+      note: data.order.note ?? ""
+    });
+    setIsEditOrderDialogOpen(true);
+  }
+
+  function renderMixItemsEditor(
+    mixItems: EditableMixItem[],
+    updateMixItem: (index: number, patch: Partial<EditableMixItem>) => void,
+    addMixItem: () => void,
+    removeMixItem: (index: number) => void
+  ) {
+    return (
+      <div className="grid gap-3 border-t pt-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium">自選內容</p>
+          <Button type="button" variant="outline" size="sm" onClick={addMixItem}>
+            <Plus className="mr-2 h-4 w-4" />
+            新增內容
+          </Button>
+        </div>
+        {mixItems.map((mixItem, index) => (
+          <div key={index} className="grid gap-3 md:grid-cols-[1fr_120px_auto]">
+            <select
+              className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={mixItem.productId}
+              onChange={(event) => updateMixItem(index, { productId: event.target.value })}
+            >
+              {singleProducts.map((product) => (
+                <option key={product.productId} value={product.productId}>
+                  {product.productName}
+                </option>
+              ))}
+            </select>
+            <Input
+              type="number"
+              min="1"
+              value={mixItem.qty}
+              onChange={(event) => updateMixItem(index, { qty: event.target.value })}
+            />
+            <Button type="button" variant="outline" size="sm" onClick={() => removeMixItem(index)}>
+              <XCircle className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+        {mixItems.length === 0 ? <p className="text-sm text-muted-foreground">尚未設定自選內容</p> : null}
+      </div>
+    );
   }
 
   const confirmMutation = useMutation({
@@ -193,6 +332,13 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
       if (context?.snapshot) restoreOrderQuerySnapshot(queryClient, orderId, context.snapshot);
       toast.error(error.message);
     },
+    onSettled: () => invalidateRelatedQueries(orderId, scheduleDates)
+  });
+
+  const recheckPackagingMutation = useMutation({
+    mutationFn: () => recheckPackagingApi(orderId),
+    onSuccess: (result) => toast.success(result.message),
+    onError: (error) => toast.error(error.message),
     onSettled: () => invalidateRelatedQueries(orderId, scheduleDates)
   });
 
@@ -250,6 +396,16 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
     }
   });
 
+  const updateOrderMutation = useMutation({
+    mutationFn: (input: Record<string, unknown>) => updateOrderApi(orderId, input),
+    onSuccess: () => {
+      toast.success("Order updated");
+      setIsEditOrderDialogOpen(false);
+    },
+    onError: (error) => toast.error(error.message),
+    onSettled: () => invalidateRelatedQueries(orderId, scheduleDates)
+  });
+
   const updateItemMutation = useMutation({
     mutationFn: ({ itemId, input }: { itemId: string; input: Record<string, unknown> }) => updateItemApi(orderId, itemId, input),
     onSuccess: (result) => {
@@ -279,6 +435,7 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
     mutationFn: (input: Record<string, unknown>) => addItemApi(orderId, input),
     onSuccess: (result) => {
       toast.success(result.message);
+      if (result.item) setSelectedItemId(result.item.id);
       setIsAddDialogOpen(false);
     },
     onError: (error) => toast.error(error.message),
@@ -291,9 +448,20 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
 
   if (isLoading || !data) return <p>載入中...</p>;
 
-  const { order, items, mixItems, components, orderProgress, hasFulfilledItems } = data;
+  const { order, items, mixItems, orderProgress, hasFulfilledItems } = data;
   const isSavingItem = updateItemMutation.isPending || cancelItemMutation.isPending;
   const activeItemCount = items.filter((item) => item.itemStatus !== "cancelled").length;
+  const selectedItem = items.find((item) => item.id === selectedItemId) ?? items[0] ?? null;
+  const selectedMixItems = selectedItem ? (mixItems.find((group) => group.orderItemId === selectedItem.id)?.items ?? []) : [];
+  const displayedShortagePackagings =
+    recheckPackagingMutation.data?.shortagePackagings ??
+    confirmMutation.data?.shortagePackagings ??
+    order.confirmedShortagePackagings;
+  const shortageAlertTitle = recheckPackagingMutation.data
+    ? "目前包材檢查"
+    : confirmMutation.data
+      ? "確認時包材提醒"
+      : "上次包材提醒";
 
   return (
     <div className="grid gap-6">
@@ -302,6 +470,10 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
         progress={orderProgress}
         actions={
           <>
+            <Button variant="outline" onClick={openEditOrderDialog} disabled={order.orderStatus === "cancelled"}>
+              <Edit2 className="mr-2 h-4 w-4" />
+              編輯訂單
+            </Button>
             <ConfirmOrderDialog
               disabled={order.orderStatus !== "draft" || confirmMutation.isPending}
               isPending={confirmMutation.isPending}
@@ -312,7 +484,7 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
               disabled={order.orderStatus !== "confirmed" || hasFulfilledItems || unconfirmMutation.isPending}
               onClick={() => unconfirmMutation.mutate()}
             >
-              退回 Draft
+              返回 Draft
             </Button>
             <Button
               variant="destructive"
@@ -325,15 +497,109 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
         }
       />
 
-      {confirmMutation.data ? <ShortageAlert shortagePackagings={confirmMutation.data.shortagePackagings} /> : null}
+      {displayedShortagePackagings ? (
+        <div className="grid gap-3">
+          <ShortageAlert
+            shortagePackagings={displayedShortagePackagings}
+            checkedAt={order.packagingCheckedAt}
+            title={shortageAlertTitle}
+          />
+          {order.orderStatus !== "cancelled" ? (
+            <div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={recheckPackagingMutation.isPending}
+                onClick={() => recheckPackagingMutation.mutate()}
+              >
+                重新檢查包材
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {hasFulfilledItems ? (
         <Card>
           <CardContent className="pt-6 text-sm text-muted-foreground">
-            此訂單已有 fulfilled 明細，因此不能 unconfirm 或 void；pending 明細仍可編輯或取消。
+            訂單已有 fulfilled 明細，整張訂單不可返回 draft 或 void；pending 明細仍可編輯或取消。
           </CardContent>
         </Card>
       ) : null}
+
+      <Dialog open={isEditOrderDialogOpen} onOpenChange={setIsEditOrderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>編輯訂單金額</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <label className="grid gap-2 text-sm">
+              折扣類型
+              <select
+                className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={editOrderForm.discountType}
+                onChange={(event) =>
+                  setEditOrderForm((form) => ({
+                    ...form,
+                    discountType: event.target.value as EditOrderForm["discountType"],
+                    discountRate: event.target.value === "none" ? "1" : form.discountRate
+                  }))
+                }
+              >
+                <option value="none">無折扣</option>
+                <option value="percentage">折扣倍率</option>
+              </select>
+            </label>
+            <label className="grid gap-2 text-sm">
+              折扣倍率
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                disabled={editOrderForm.discountType === "none"}
+                value={editOrderForm.discountRate}
+                onChange={(event) => setEditOrderForm((form) => ({ ...form, discountRate: event.target.value }))}
+              />
+            </label>
+            <label className="grid gap-2 text-sm">
+              已付金額
+              <Input
+                type="number"
+                step="1"
+                min="0"
+                value={editOrderForm.paidAmount}
+                onChange={(event) => setEditOrderForm((form) => ({ ...form, paidAmount: event.target.value }))}
+              />
+            </label>
+            <label className="grid gap-2 text-sm">
+              備註
+              <textarea
+                className="min-h-24 rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={editOrderForm.note}
+                onChange={(event) => setEditOrderForm((form) => ({ ...form, note: event.target.value }))}
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsEditOrderDialogOpen(false)}>
+                取消
+              </Button>
+              <Button
+                disabled={updateOrderMutation.isPending}
+                onClick={() =>
+                  updateOrderMutation.mutate({
+                    discountType: editOrderForm.discountType,
+                    discountRate: editOrderForm.discountType === "none" ? 1 : Number(editOrderForm.discountRate),
+                    paidAmount: Number(editOrderForm.paidAmount),
+                    note: editOrderForm.note || null
+                  })
+                }
+              >
+                儲存
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-3">
@@ -364,8 +630,18 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id}>
+              {items.map((item) => {
+                const isSelected = selectedItem?.id === item.id;
+                return (
+                <TableRow
+                  key={item.id}
+                  aria-selected={isSelected}
+                  className={cn(
+                    "cursor-pointer border-l-4 border-l-transparent",
+                    isSelected && "border-l-primary bg-muted/70 hover:bg-muted/70"
+                  )}
+                  onClick={() => setSelectedItemId(item.id)}
+                >
                   <TableCell>{item.productNameSnapshot}</TableCell>
                   <TableCell>
                     {item.qty} {item.unit}
@@ -409,7 +685,8 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -420,10 +697,12 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
           <CardTitle>組合內容</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
-          {mixItems.map((group) =>
-            group.items.length > 0 ? (
+          {[mixItems.find((group) => group.orderItemId === selectedItem?.id)].map((group) =>
+            group && group.items.length > 0 ? (
               <div key={group.orderItemId} className="rounded-lg border p-4">
-                <p className="mb-3 text-sm font-medium">OrderItem {group.orderItemId}</p>
+                <p className="mb-3 text-sm font-medium">
+                  {selectedItem?.productNameSnapshot} / {selectedItem?.qty} {selectedItem?.unit}
+                </p>
                 <div className="grid gap-2 text-sm">
                   {group.items.map((mixItem) => (
                     <p key={mixItem.id}>
@@ -434,59 +713,32 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
               </div>
             ) : null
           )}
-          {mixItems.every((group) => group.items.length === 0) ? (
-            <p className="text-sm text-muted-foreground">沒有自訂組合內容</p>
+          {selectedMixItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground">此明細沒有自訂組合內容</p>
           ) : null}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>OrderItemComponents 快照</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>OrderItem</TableHead>
-                <TableHead>類型</TableHead>
-                <TableHead>名稱</TableHead>
-                <TableHead>數量</TableHead>
-                <TableHead>來源</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {components.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>{item.orderItemId}</TableCell>
-                  <TableCell>{item.itemType}</TableCell>
-                  <TableCell>{item.itemNameSnapshot}</TableCell>
-                  <TableCell>{item.qty}</TableCell>
-                  <TableCell>{item.sourceType}</TableCell>
-                </TableRow>
-              ))}
-              {components.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5}>尚無快照</TableCell>
-                </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
 
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>新增草稿明細</DialogTitle>
+            <DialogTitle>新增訂單明細</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4">
             <label className="grid gap-2 text-sm">
-              商品
+              產品
               <select
                 className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 value={addForm.productId}
-                onChange={(event) => setAddForm((form) => ({ ...form, productId: event.target.value }))}
+                onChange={(event) => {
+                  const productId = event.target.value;
+                  setAddForm((form) => ({
+                    ...form,
+                    productId,
+                    mixItems: isCustomProduct(productId) ? makeDefaultMixItems() : []
+                  }));
+                }}
               >
                 {products.map((product) => (
                   <option key={product.productId} value={product.productId}>
@@ -519,7 +771,7 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
                 value={addForm.packagingId}
                 onChange={(event) => setAddForm((form) => ({ ...form, packagingId: event.target.value }))}
               >
-                <option value="">不指定</option>
+                <option value="">不指定包裝</option>
                 {packagings.map((packaging) => (
                   <option key={packaging.packagingId} value={packaging.packagingId}>
                     {packaging.packagingName}
@@ -535,6 +787,28 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
                 onChange={(event) => setAddForm((form) => ({ ...form, remark: event.target.value }))}
               />
             </label>
+            {isCustomProduct(addForm.productId)
+              ? renderMixItemsEditor(
+                  addForm.mixItems,
+                  (index, patch) =>
+                    setAddForm((form) => ({
+                      ...form,
+                      mixItems: form.mixItems.map((mixItem, mixIndex) =>
+                        mixIndex === index ? { ...mixItem, ...patch } : mixItem
+                      )
+                    })),
+                  () =>
+                    setAddForm((form) => ({
+                      ...form,
+                      mixItems: [...form.mixItems, { productId: singleProducts[0]?.productId ?? "", qty: "1" }]
+                    })),
+                  (index) =>
+                    setAddForm((form) => ({
+                      ...form,
+                      mixItems: form.mixItems.filter((_, mixIndex) => mixIndex !== index)
+                    }))
+                )
+              : null}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 取消
@@ -547,7 +821,8 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
                     qty: Number(addForm.qty),
                     packagingId: addForm.packagingId || undefined,
                     plannedFulfillDate: addForm.plannedFulfillDate,
-                    remark: addForm.remark || undefined
+                    remark: addForm.remark || undefined,
+                    mixItems: isCustomProduct(addForm.productId) ? toMixPayload(addForm.mixItems) : []
                   })
                 }
               >
@@ -588,7 +863,7 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
                 value={editForm.packagingId}
                 onChange={(event) => setEditForm((form) => ({ ...form, packagingId: event.target.value }))}
               >
-                <option value="">不指定</option>
+                <option value="">不指定包裝</option>
                 {packagings.map((packaging) => (
                   <option key={packaging.packagingId} value={packaging.packagingId}>
                     {packaging.packagingName}
@@ -604,6 +879,28 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
                 onChange={(event) => setEditForm((form) => ({ ...form, remark: event.target.value }))}
               />
             </label>
+            {editingItem && isCustomProduct(editingItem.productId)
+              ? renderMixItemsEditor(
+                  editForm.mixItems,
+                  (index, patch) =>
+                    setEditForm((form) => ({
+                      ...form,
+                      mixItems: form.mixItems.map((mixItem, mixIndex) =>
+                        mixIndex === index ? { ...mixItem, ...patch } : mixItem
+                      )
+                    })),
+                  () =>
+                    setEditForm((form) => ({
+                      ...form,
+                      mixItems: [...form.mixItems, { productId: singleProducts[0]?.productId ?? "", qty: "1" }]
+                    })),
+                  (index) =>
+                    setEditForm((form) => ({
+                      ...form,
+                      mixItems: form.mixItems.filter((_, mixIndex) => mixIndex !== index)
+                    }))
+                )
+              : null}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setEditingItem(null)}>
                 取消
@@ -618,7 +915,8 @@ export function OrderDetailClient({ orderId, initialData }: { orderId: string; i
                       qty: Number(editForm.qty),
                       packagingId: editForm.packagingId || null,
                       plannedFulfillDate: editForm.plannedFulfillDate,
-                      remark: editForm.remark || null
+                      remark: editForm.remark || null,
+                      mixItems: isCustomProduct(editingItem.productId) ? toMixPayload(editForm.mixItems) : []
                     }
                   });
                 }}

@@ -72,26 +72,26 @@ export async function deletePackaging(repos: Repositories, packagingId: string):
   const existing = await repos.packagings.findById(packagingId);
   if (!existing) return false;
 
-  const orders = await repos.orders.listOrders();
-  for (const order of orders) {
-    const orderItems = await repos.orders.listOrderItems(order.orderId);
-    if (orderItems.some((item) => item.packagingId === packagingId)) {
-      throw new Error("包材已被訂單明細使用，不能刪除");
-    }
-
-    const components = await repos.orders.listComponents(order.orderId);
-    if (components.some((item) => item.itemType === "packaging" && item.itemId === packagingId)) {
-      throw new Error("包材已被訂單快照使用，不能刪除");
-    }
+  const [orders, packagings] = await Promise.all([repos.orders.listOrders(), repos.packagings.list()]);
+  const orderItems = (await Promise.all(orders.map((order) => repos.orders.listOrderItems(order.orderId)))).flat();
+  if (orderItems.some((item) => item.packagingId === packagingId)) {
+    throw new Error("包材已被訂單明細使用，不能刪除");
   }
 
-  const packagings = await repos.packagings.list();
-  for (const packaging of packagings) {
-    if (packaging.packagingId === packagingId) continue;
-    const bomItems = await repos.bom.listPackagingBom(packaging.packagingId);
-    if (bomItems.some((item) => item.childPackagingId === packagingId)) {
-      throw new Error("包材已被其他包材 BOM 使用，不能刪除");
-    }
+  const components = (await Promise.all(orders.map((order) => repos.orders.listComponents(order.orderId)))).flat();
+  if (components.some((item) => item.itemType === "packaging" && item.itemId === packagingId)) {
+    throw new Error("包材已被訂單快照使用，不能刪除");
+  }
+
+  const bomItems = (
+    await Promise.all(
+      packagings
+        .filter((packaging) => packaging.packagingId !== packagingId)
+        .map((packaging) => repos.bom.listPackagingBom(packaging.packagingId))
+    )
+  ).flat();
+  if (bomItems.some((item) => item.childPackagingId === packagingId)) {
+    throw new Error("包材已被其他包材 BOM 使用，不能刪除");
   }
 
   await repos.packagings.delete(packagingId);

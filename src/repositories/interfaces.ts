@@ -53,6 +53,7 @@ export interface OrderRepository {
   }): Promise<OrderItem>;
   updateOrder(order: Order): Promise<Order>;
   updateOrderItem(orderItem: OrderItem): Promise<OrderItem>;
+  replaceMixItems(orderItemId: string, mixItems: OrderMixItem[]): Promise<void>;
   replaceComponents(orderId: string, components: OrderItemComponent[]): Promise<void>;
 }
 

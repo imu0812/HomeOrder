@@ -15,7 +15,12 @@ import type {
   ScheduleItem,
   UpdateOrderItemResult
 } from "@/domain/types";
-import { createOrderItemInputSchema, createOrderRequestSchema, updateOrderItemInputSchema } from "@/domain/schemas";
+import {
+  createOrderItemInputSchema,
+  createOrderRequestSchema,
+  updateOrderInputSchema,
+  updateOrderItemInputSchema
+} from "@/domain/schemas";
 import { mockSession } from "@/lib/auth/session";
 import { createId, nowIso } from "@/lib/utils";
 import type { Repositories } from "@/repositories/interfaces";
@@ -32,6 +37,7 @@ type RequirementAccumulator = Map<
 >;
 
 type PackagingSnapshot = Pick<OrderItemComponent, "itemId" | "itemNameSnapshot" | "qty" | "itemType">;
+type MixItemsByOrderItemId = Map<string, OrderMixItem[]>;
 
 export function deriveOrderProgress(items: OrderItem[]): OrderProgress {
   const activeItems = items.filter((item) => item.itemStatus !== "cancelled");
@@ -110,16 +116,18 @@ function recalculateOrderTotals(order: Order, items: OrderItem[]): Order {
   return { ...order, ...amounts };
 }
 
+
 async function expandProductRequirement(
   repos: Repositories,
   orderItem: OrderItem,
   product: Product,
-  snapshots: OrderItemComponent[]
+  snapshots: OrderItemComponent[],
+  mixItemsByOrderItemId?: MixItemsByOrderItemId
 ) {
   const requirements: RequirementAccumulator = new Map();
 
   if (product.productType === "custom_bundle_template") {
-    const mixItems = await repos.orders.listMixItems(orderItem.id);
+    const mixItems = mixItemsByOrderItemId?.get(orderItem.id) ?? (await repos.orders.listMixItems(orderItem.id));
     for (const mixItem of mixItems) {
       const childProduct = await repos.products.findById(mixItem.productId);
       const itemName = childProduct?.productName ?? mixItem.productNameSnapshot;
@@ -215,7 +223,8 @@ async function expandPackagingRequirement(
 
 async function collectRequirementsForOrderItem(
   repos: Repositories,
-  orderItem: OrderItem
+  orderItem: OrderItem,
+  mixItemsByOrderItemId?: MixItemsByOrderItemId
 ): Promise<{
   productRequirements: RequirementAccumulator;
   packagingRequirements: RequirementAccumulator;
@@ -230,7 +239,10 @@ async function collectRequirementsForOrderItem(
   ]);
 
   if (!product) throw new Error(`找不到商品 ${orderItem.productId}`);
-  mergeRequirementMaps(productRequirements, await expandProductRequirement(repos, orderItem, product, snapshots));
+  mergeRequirementMaps(
+    productRequirements,
+    await expandProductRequirement(repos, orderItem, product, snapshots, mixItemsByOrderItemId)
+  );
 
   if (orderItem.packagingId) {
     if (!packaging) throw new Error(`找不到包材 ${orderItem.packagingId}`);
@@ -238,6 +250,30 @@ async function collectRequirementsForOrderItem(
   }
 
   return { productRequirements, packagingRequirements, snapshots };
+}
+
+async function buildOrderMixItems(
+  repos: Repositories,
+  orderItemId: string,
+  inputMixItems: { productId: string; qty: number }[]
+) {
+  const mixItems: OrderMixItem[] = [];
+
+  for (const [mixIndex, mixItem] of inputMixItems.entries()) {
+    const mixProduct = await repos.products.findById(mixItem.productId);
+    if (!mixProduct) throw new Error(`Product not found: ${mixItem.productId}`);
+    mixItems.push({
+      id: createId("mix"),
+      orderItemId,
+      productId: mixProduct.productId,
+      productNameSnapshot: mixProduct.productName,
+      qty: mixItem.qty,
+      unit: mixProduct.unit,
+      sortOrder: mixIndex + 1
+    });
+  }
+
+  return mixItems;
 }
 
 async function enrichProductRequirements(repos: Repositories, requirements: RequirementAccumulator) {
@@ -303,6 +339,13 @@ function toPackagingSnapshots(snapshots: OrderItemComponent[]) {
   return snapshots.filter((snapshot) => snapshot.itemType === "packaging");
 }
 
+function sumPackagingSnapshots(snapshots: PackagingSnapshot[]) {
+  return snapshots.reduce((totals, snapshot) => {
+    totals.set(snapshot.itemId, (totals.get(snapshot.itemId) ?? 0) + snapshot.qty);
+    return totals;
+  }, new Map<string, number>());
+}
+
 async function releasePackagingReservations(
   repos: Repositories,
   order: Order,
@@ -338,6 +381,69 @@ async function listOrderMixBundles(repos: Repositories, items: OrderItem[]) {
       items: await repos.orders.listMixItems(item.id)
     }))
   );
+}
+
+async function calculatePendingPackagingCheck(repos: Repositories, order: Order) {
+  const orderItems = await repos.orders.listOrderItems(order.orderId);
+  const pendingItems = orderItems.filter((item) => item.itemStatus === "pending");
+  const productRequirements: RequirementAccumulator = new Map();
+  const packagingRequirements: RequirementAccumulator = new Map();
+  const snapshots: OrderItemComponent[] = [];
+
+  const itemResults = await Promise.all(pendingItems.map((item) => collectRequirementsForOrderItem(repos, item)));
+  for (const itemResult of itemResults) {
+    snapshots.push(...itemResult.snapshots);
+    mergeRequirementMaps(productRequirements, itemResult.productRequirements);
+    mergeRequirementMaps(packagingRequirements, itemResult.packagingRequirements);
+  }
+
+  const [expandedProducts, rawExpandedPackagings] = await Promise.all([
+    enrichProductRequirements(repos, productRequirements),
+    enrichPackagingRequirements(repos, packagingRequirements)
+  ]);
+
+  const existingSnapshots = await repos.orders.listComponents(order.orderId);
+  const pendingItemIds = new Set(pendingItems.map((item) => item.id));
+  const ownPendingReservations = sumPackagingSnapshots(
+    toPackagingSnapshots(existingSnapshots.filter((snapshot) => pendingItemIds.has(snapshot.orderItemId)))
+  );
+  const expandedPackagings =
+    order.orderStatus === "confirmed"
+      ? rawExpandedPackagings.map((item) => ({
+          ...item,
+          availableStock: item.availableStock + (ownPendingReservations.get(item.itemId) ?? 0)
+        }))
+      : rawExpandedPackagings;
+
+  return {
+    expandedProducts,
+    expandedPackagings,
+    shortagePackagings: findShortages(expandedPackagings),
+    snapshots
+  };
+}
+
+export async function recheckOrderPackaging(repos: Repositories, orderId: string): Promise<ConfirmOrderResult> {
+  const order = await repos.orders.findOrder(orderId);
+  if (!order) return toApiError(orderId, "Order not found");
+  if (order.orderStatus === "cancelled") return toApiError(orderId, "Cancelled order cannot be checked");
+
+  try {
+    const result = await calculatePendingPackagingCheck(repos, order);
+    await repos.orders.updateOrder({
+      ...order,
+      confirmedShortagePackagings: result.shortagePackagings,
+      packagingCheckedAt: nowIso()
+    });
+    return {
+      success: true,
+      message: buildPackagingShortageSummary(result.expandedPackagings),
+      orderId,
+      ...result
+    };
+  } catch (error) {
+    return toApiError(orderId, error instanceof Error ? error.message : "Failed to check packaging");
+  }
 }
 
 export async function getOrderDetail(repos: Repositories, orderId: string): Promise<OrderDetail | undefined> {
@@ -452,7 +558,12 @@ export async function confirmOrder(repos: Repositories, orderId: string): Promis
   if (packagingSnapshots.length > 0) {
     await repos.transactions.appendMany(makeTransactions(order, "reserve", packagingSnapshots, `Reserve for ${order.orderNo}`));
   }
-  await repos.orders.updateOrder({ ...order, orderStatus: "confirmed" });
+  await repos.orders.updateOrder({
+    ...order,
+    orderStatus: "confirmed",
+    confirmedShortagePackagings: shortagePackagings,
+    packagingCheckedAt: nowIso()
+  });
 
   return {
     success: true,
@@ -503,6 +614,16 @@ export async function updatePendingOrderItem(
         plannedFulfillDate: input.plannedFulfillDate ?? orderItem.plannedFulfillDate,
         remark: input.remark === null ? undefined : (input.remark ?? orderItem.remark)
       };
+  const shouldReplaceMixItems = !input.cancel && input.mixItems !== undefined;
+  let nextMixItems: OrderMixItem[] | undefined;
+
+  if (shouldReplaceMixItems) {
+    try {
+      nextMixItems = await buildOrderMixItems(repos, orderItemId, input.mixItems ?? []);
+    } catch (error) {
+      return toApiError(orderId, error instanceof Error ? error.message : "Failed to update mix items");
+    }
+  }
 
   const orderItems = await repos.orders.listOrderItems(orderId);
   const activeItems = orderItems.filter((item) => item.itemStatus !== "cancelled");
@@ -514,9 +635,12 @@ export async function updatePendingOrderItem(
   const updatedOrder = recalculateOrderTotals(order, updatedItems);
 
   if (order.orderStatus !== "confirmed") {
+    const writeTasks: Promise<unknown>[] = [];
+    if (nextMixItems) writeTasks.push(repos.orders.replaceMixItems(orderItemId, nextMixItems));
     const [savedItem, savedOrder] = await Promise.all([
       repos.orders.updateOrderItem(updatedItem),
-      repos.orders.updateOrder(updatedOrder)
+      repos.orders.updateOrder(updatedOrder),
+      ...writeTasks
     ]);
     return {
       ...toApiError(orderId, "Draft item updated"),
@@ -534,12 +658,13 @@ export async function updatePendingOrderItem(
   const productRequirements: RequirementAccumulator = new Map();
   const packagingRequirements: RequirementAccumulator = new Map();
   const pendingSnapshots: OrderItemComponent[] = [];
+  const mixItemsByOrderItemId = nextMixItems ? new Map([[orderItemId, nextMixItems]]) : undefined;
 
   try {
     const itemResults = await Promise.all(
       updatedItems
         .filter((item) => item.itemStatus === "pending")
-        .map((item) => collectRequirementsForOrderItem(repos, item))
+        .map((item) => collectRequirementsForOrderItem(repos, item, mixItemsByOrderItemId))
     );
 
     for (const itemResult of itemResults) {
@@ -559,9 +684,16 @@ export async function updatePendingOrderItem(
   const pendingPackagingSnapshots = toPackagingSnapshots(pendingSnapshots);
 
   await releasePackagingReservations(repos, order, toPackagingSnapshots(releasableSnapshots), `Recalculate pending items ${order.orderNo}`);
+  const writeTasks: Promise<unknown>[] = [];
+  if (nextMixItems) writeTasks.push(repos.orders.replaceMixItems(orderItemId, nextMixItems));
   const [savedItem, savedOrder] = await Promise.all([
     repos.orders.updateOrderItem(updatedItem),
-    repos.orders.updateOrder(updatedOrder)
+    repos.orders.updateOrder({
+      ...updatedOrder,
+      confirmedShortagePackagings: shortagePackagings,
+      packagingCheckedAt: nowIso()
+    }),
+    ...writeTasks
   ]);
   await repos.orders.replaceComponents(orderId, [...fulfilledSnapshots, ...pendingSnapshots]);
   await Promise.all(
@@ -697,7 +829,12 @@ export async function unconfirmOrder(repos: Repositories, orderId: string): Prom
   const snapshots = await repos.orders.listComponents(orderId);
   await releasePackagingReservations(repos, order, toPackagingSnapshots(snapshots), `Unconfirm ${order.orderNo}`);
   await repos.orders.replaceComponents(orderId, []);
-  await repos.orders.updateOrder({ ...order, orderStatus: "draft" });
+  await repos.orders.updateOrder({
+    ...order,
+    orderStatus: "draft",
+    confirmedShortagePackagings: [],
+    packagingCheckedAt: undefined
+  });
 
   return buildOrderActionResult(orderId, true, "訂單已回到 draft，包材預留已釋放。", snapshots);
 }
@@ -732,6 +869,30 @@ export async function voidOrder(repos: Repositories, orderId: string): Promise<O
   await repos.orders.updateOrder({ ...order, orderStatus: "cancelled" });
 
   return buildOrderActionResult(orderId, true, "訂單已作廢。", snapshots);
+}
+
+export async function updateOrderSummary(repos: Repositories, orderId: string, rawInput: unknown): Promise<Order> {
+  const input = updateOrderInputSchema.parse(rawInput);
+  const order = await repos.orders.findOrder(orderId);
+  if (!order) throw new Error("Order not found");
+  if (order.orderStatus === "cancelled") throw new Error("Cancelled order cannot be edited");
+
+  const items = await repos.orders.listOrderItems(orderId);
+  const nextDiscountType = input.discountType ?? order.discountType;
+  const nextDiscountRate = input.discountRate ?? order.discountRate;
+  const amounts = calculateOrderAmounts(
+    items.filter((item) => item.itemStatus !== "cancelled"),
+    nextDiscountType,
+    nextDiscountRate
+  );
+
+  return repos.orders.updateOrder({
+    ...order,
+    ...amounts,
+    discountType: nextDiscountType,
+    paidAmount: input.paidAmount ?? order.paidAmount ?? 0,
+    note: input.note === null ? undefined : (input.note ?? order.note)
+  });
 }
 
 export async function createMockOrderFromTemplate(repos: Repositories, rawInput: unknown): Promise<Order> {
@@ -806,6 +967,8 @@ export async function createMockOrderFromTemplate(repos: Repositories, rawInput:
     discountRate: amounts.discountRate,
     discountAmount: amounts.discountAmount,
     totalAmount: amounts.totalAmount,
+    paidAmount: input.paidAmount,
+    confirmedShortagePackagings: [],
     note: input.note,
     createdAt: now,
     createdBy: mockSession.userId

@@ -69,28 +69,26 @@ export async function deleteProduct(repos: Repositories, productId: string): Pro
   const existing = await repos.products.findById(productId);
   if (!existing) return false;
 
-  const orders = await repos.orders.listOrders();
-  for (const order of orders) {
-    const orderItems = await repos.orders.listOrderItems(order.orderId);
-    if (orderItems.some((item) => item.productId === productId)) {
-      throw new Error("商品已被訂單明細使用，不能刪除");
-    }
-
-    for (const orderItem of orderItems) {
-      const mixItems = await repos.orders.listMixItems(orderItem.id);
-      if (mixItems.some((item) => item.productId === productId)) {
-        throw new Error("商品已被訂單組合內容使用，不能刪除");
-      }
-    }
+  const [orders, products] = await Promise.all([repos.orders.listOrders(), repos.products.list()]);
+  const orderItems = (await Promise.all(orders.map((order) => repos.orders.listOrderItems(order.orderId)))).flat();
+  if (orderItems.some((item) => item.productId === productId)) {
+    throw new Error("商品已被訂單明細使用，不能刪除");
   }
 
-  const products = await repos.products.list();
-  for (const product of products) {
-    if (product.productId === productId) continue;
-    const bomItems = await repos.bom.listProductBom(product.productId);
-    if (bomItems.some((item) => item.childProductId === productId)) {
-      throw new Error("商品已被其他商品 BOM 使用，不能刪除");
-    }
+  const mixItems = (await Promise.all(orderItems.map((orderItem) => repos.orders.listMixItems(orderItem.id)))).flat();
+  if (mixItems.some((item) => item.productId === productId)) {
+    throw new Error("商品已被訂單組合內容使用，不能刪除");
+  }
+
+  const bomItems = (
+    await Promise.all(
+      products
+        .filter((product) => product.productId !== productId)
+        .map((product) => repos.bom.listProductBom(product.productId))
+    )
+  ).flat();
+  if (bomItems.some((item) => item.childProductId === productId)) {
+    throw new Error("商品已被其他商品 BOM 使用，不能刪除");
   }
 
   await repos.products.delete(productId);

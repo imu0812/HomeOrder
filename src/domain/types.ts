@@ -105,6 +105,9 @@ export type Order = {
   discountRate: number;
   discountAmount: number;
   totalAmount: number;
+  paidAmount: number;
+  confirmedShortagePackagings?: ShortageRequirement[];
+  packagingCheckedAt?: string;
   note?: string;
   createdAt: string;
   createdBy: string;

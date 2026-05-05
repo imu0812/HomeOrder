@@ -37,6 +37,7 @@ async function createOrder(payload: {
   note?: string;
   discountType: "none" | "percentage";
   discountRate: number;
+  paidAmount: number;
   items: DraftOrderItem[];
 }) {
   const response = await fetch("/api/orders", {
@@ -130,6 +131,7 @@ export function NewOrderClient() {
               note: String(formData.get("note") ?? ""),
               discountType: String(formData.get("discountType") ?? "none") as "none" | "percentage",
               discountRate: Number(formData.get("discountRate") ?? 1),
+              paidAmount: Number(formData.get("paidAmount") ?? 0),
               items: validItems
             });
           }}
@@ -156,6 +158,10 @@ export function NewOrderClient() {
             <div className="grid gap-2">
               <Label htmlFor="discountRate">折扣倍率</Label>
               <Input id="discountRate" name="discountRate" type="number" step="0.01" min="0" defaultValue="0.95" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="paidAmount">已付金額</Label>
+              <Input id="paidAmount" name="paidAmount" type="number" step="1" min="0" defaultValue="0" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="note">備註</Label>

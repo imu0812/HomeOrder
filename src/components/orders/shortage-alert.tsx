@@ -1,24 +1,35 @@
 "use client";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { formatDateTime } from "@/lib/utils";
 import type { ShortageRequirement } from "@/domain/types";
 
-export function ShortageAlert({ shortagePackagings }: { shortagePackagings: ShortageRequirement[] }) {
+export function ShortageAlert({
+  shortagePackagings,
+  checkedAt,
+  title = "包材提醒"
+}: {
+  shortagePackagings: ShortageRequirement[];
+  checkedAt?: string;
+  title?: string;
+}) {
+  const checkedText = checkedAt ? `檢查時間：${formatDateTime(checkedAt)}` : undefined;
+
   if (shortagePackagings.length === 0) {
     return (
       <Alert>
-        <AlertTitle>包材足量</AlertTitle>
-        <AlertDescription>這張訂單目前沒有包材缺料，confirm 後可以正常預留。</AlertDescription>
+        <AlertTitle>{title}：包材足夠</AlertTitle>
+        <AlertDescription>{checkedText ?? "目前尚未發現包材不足。"}</AlertDescription>
       </Alert>
     );
   }
 
   return (
     <Alert className="border-destructive/40">
-      <AlertTitle>包材缺料提醒</AlertTitle>
+      <AlertTitle>{title}：包材不足</AlertTitle>
       <AlertDescription>
         <div className="grid gap-2">
-          <p>系統只顯示 shortagePackagings，不會把商品展開結果當成缺料警示。</p>
+          {checkedText ? <p>{checkedText}</p> : null}
           <ul className="grid gap-1">
             {shortagePackagings.map((item) => (
               <li key={item.itemId} className="text-destructive">

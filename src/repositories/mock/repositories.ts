@@ -113,6 +113,10 @@ export const mockRepositories: Repositories = {
       if (index >= 0) mockDb.orderItems[index] = orderItem;
       return orderItem;
     },
+    async replaceMixItems(orderItemId: string, mixItems: OrderMixItem[]) {
+      mockDb.orderMixItems = mockDb.orderMixItems.filter((item) => item.orderItemId !== orderItemId);
+      mockDb.orderMixItems.push(...mixItems);
+    },
     async replaceComponents(orderId: string, components: OrderItemComponent[]) {
       const orderItemIds = mockDb.orderItems.filter((item) => item.orderId === orderId).map((item) => item.id);
       mockDb.orderItemComponents = mockDb.orderItemComponents.filter(

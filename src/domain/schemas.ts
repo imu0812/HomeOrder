@@ -94,6 +94,20 @@ export const orderSchema = z.object({
   discountRate: z.number().nonnegative(),
   discountAmount: z.number().nonnegative(),
   totalAmount: z.number().nonnegative(),
+  paidAmount: z.number().nonnegative().default(0),
+  confirmedShortagePackagings: z
+    .array(
+      z.object({
+        itemId: z.string().min(1),
+        itemName: z.string().min(1),
+        qty: z.number().nonnegative(),
+        availableStock: z.number(),
+        safeStock: z.number().nonnegative(),
+        shortageQty: z.number().nonnegative()
+      })
+    )
+    .optional(),
+  packagingCheckedAt: z.string().optional(),
   note: z.string().optional(),
   createdAt: z.string().min(1),
   createdBy: z.string().min(1)
@@ -172,7 +186,15 @@ export const createOrderRequestSchema = z.object({
   note: z.string().optional(),
   discountType: z.enum(ORDER_DISCOUNT_TYPES).default("none"),
   discountRate: z.number().nonnegative().default(1),
+  paidAmount: z.number().nonnegative().default(0),
   items: z.array(createOrderItemInputSchema).min(1)
+});
+
+export const updateOrderInputSchema = z.object({
+  discountType: z.enum(ORDER_DISCOUNT_TYPES).optional(),
+  discountRate: z.number().nonnegative().optional(),
+  paidAmount: z.number().nonnegative().optional(),
+  note: z.string().optional().nullable()
 });
 
 export const updateOrderItemInputSchema = z.object({
@@ -180,6 +202,14 @@ export const updateOrderItemInputSchema = z.object({
   packagingId: z.string().optional().nullable(),
   plannedFulfillDate: z.string().min(1).optional(),
   remark: z.string().optional().nullable(),
+  mixItems: z
+    .array(
+      z.object({
+        productId: z.string().min(1),
+        qty: z.number().positive()
+      })
+    )
+    .optional(),
   cancel: z.boolean().optional()
 });
 

@@ -36,6 +36,7 @@ export const googleSheetsRepositories: Repositories = {
     createOrderItem: async () => notImplemented(),
     updateOrder: async () => notImplemented(),
     updateOrderItem: async () => notImplemented(),
+    replaceMixItems: async () => notImplemented(),
     replaceComponents: async () => notImplemented()
   },
   inventory: {

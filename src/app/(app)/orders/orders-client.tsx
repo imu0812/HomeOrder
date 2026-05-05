@@ -75,7 +75,14 @@ export function OrdersClient({ initialData }: { initialData: OrderListItem[] }) 
                 </TableCell>
                 <TableCell>{row.itemCount}</TableCell>
                 <TableCell>{row.nextPlannedFulfillDate ?? "-"}</TableCell>
-                <TableCell>${formatNumber(row.order.totalAmount)}</TableCell>
+                <TableCell>
+                  <div className="grid gap-1">
+                    <span>${formatNumber(row.order.totalAmount)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      待收 ${formatNumber(Math.max(0, row.order.totalAmount - (row.order.paidAmount ?? 0)))}
+                    </span>
+                  </div>
+                </TableCell>
                 <TableCell>
                   <Button variant="outline" size="sm" asChild>
                     <Link href={`/orders/${row.order.orderId}`}>查看</Link>

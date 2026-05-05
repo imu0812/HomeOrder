@@ -11,9 +11,15 @@
 
 ```powershell
 npm run dev
+npm run dev:warmup
+npm run dev:turbo
 npx tsc --noEmit
 npm run build
 ```
+
+`npm run dev` 使用穩定的 Next webpack dev server。開啟 dev server 後可在另一個終端機執行 `npm run dev:warmup`，先預熱常用頁面與 API，減少第一次點頁面的等待。
+
+`npm run dev:turbo` 保留給可載入 native SWC/Turbopack binding 的環境；若出現 `turbo.createProject is not supported by the wasm bindings`，請改用 `npm run dev`。
 
 ## 核心規則
 
